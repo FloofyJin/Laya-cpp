@@ -53,6 +53,7 @@ add_library(laya_core
   src/safetensors.cpp
   src/nn.cpp
   src/modernbert.cpp
+  src/decision.cpp
 )
 target_include_directories(laya_core PUBLIC include)
 target_link_libraries(laya_core PUBLIC nlohmann_json::nlohmann_json PRIVATE laya_utf8proc)
@@ -69,3 +70,7 @@ target_compile_options(laya-dump-tensor PRIVATE -Wall -Wextra -Wpedantic)
 add_executable(laya-encoder-probe tools/laya_encoder_probe.cpp)
 target_link_libraries(laya-encoder-probe PRIVATE laya_core)
 target_compile_options(laya-encoder-probe PRIVATE -Wall -Wextra -Wpedantic)
+
+add_executable(laya-predict tools/laya_predict.cpp)
+target_link_libraries(laya-predict PRIVATE laya_core)
+target_compile_options(laya-predict PRIVATE -Wall -Wextra -Wpedantic)
