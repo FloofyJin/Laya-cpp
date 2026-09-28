@@ -2,8 +2,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -55,6 +57,7 @@ private:
 
     std::vector<std::string> names_;
     std::unordered_map<std::string, TensorInfo> tensors_;
+    mutable std::map<std::tuple<std::string, size_t, size_t>, std::vector<float>> f32_cache_;
 };
 
 float f16_to_f32(uint16_t h);

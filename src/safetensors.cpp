@@ -165,7 +165,8 @@ SafetensorsFile SafetensorsFile::open(const std::string& path) {
 
 SafetensorsFile::SafetensorsFile(SafetensorsFile&& other) noexcept
     : fd_(other.fd_), map_(other.map_), map_size_(other.map_size_), data_start_(other.data_start_),
-      names_(std::move(other.names_)), tensors_(std::move(other.tensors_)) {
+      names_(std::move(other.names_)), tensors_(std::move(other.tensors_)),
+      f32_cache_(std::move(other.f32_cache_)) {
     other.fd_ = -1;
     other.map_ = nullptr;
     other.map_size_ = 0;
@@ -185,6 +186,7 @@ SafetensorsFile& SafetensorsFile::operator=(SafetensorsFile&& other) noexcept {
         data_start_ = other.data_start_;
         names_ = std::move(other.names_);
         tensors_ = std::move(other.tensors_);
+        f32_cache_ = std::move(other.f32_cache_);
         other.fd_ = -1;
         other.map_ = nullptr;
         other.map_size_ = 0;
@@ -219,6 +221,12 @@ const uint8_t* SafetensorsFile::raw(const std::string& name) const {
 }
 
 std::vector<float> SafetensorsFile::as_f32_slice(const std::string& name, size_t start, size_t count) const {
+    const auto cache_key = std::make_tuple(name, start, count);
+    const auto cached = f32_cache_.find(cache_key);
+    if (cached != f32_cache_.end()) {
+        return cached->second;
+    }
+
     const TensorInfo& t = info(name);
     const size_t n = t.numel();
     if (start > n || count > n - start) {
@@ -253,6 +261,7 @@ std::vector<float> SafetensorsFile::as_f32_slice(const std::string& name, size_t
             throw SafetensorsError("safetensors: as_f32 unsupported for tensor '" + name +
                                     "' (integer/bool dtype)");
     }
+    f32_cache_.emplace(cache_key, out);
     return out;
 }
 

@@ -1,12 +1,25 @@
 #include "laya/nn.hpp"
 
+#include <cblas.h>
+
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <vector>
 
 namespace laya::nn {
 
-void layer_norm_row(const float* x, size_t n, const float* weight, const float* bias, float eps, float* out) {
+namespace {
+
+void ensure_single_threaded_blas() {
+    static const int unused = (openblas_set_num_threads(1), 0);
+    (void)unused;
+}
+
+}
+
+void layer_norm_row(const float* __restrict x, size_t n, const float* __restrict weight,
+                    const float* __restrict bias, float eps, float* __restrict out) {
     float mean = 0.0f;
     for (size_t i = 0; i < n; ++i) {
         mean += x[i];
@@ -27,20 +40,20 @@ void layer_norm_row(const float* x, size_t n, const float* weight, const float* 
     }
 }
 
-void linear(const float* x, size_t rows, size_t in_dim, const float* weight, const float* bias, size_t out_dim,
-           float* out) {
+void linear(const float* __restrict x, size_t rows, size_t in_dim, const float* __restrict weight,
+           const float* __restrict bias, size_t out_dim, float* __restrict out) {
+    ensure_single_threaded_blas();
     for (size_t r = 0; r < rows; ++r) {
-        const float* xr = x + r * in_dim;
-        float* outr = out + r * out_dim;
-        for (size_t o = 0; o < out_dim; ++o) {
-            const float* w = weight + o * in_dim;
-            float acc = bias != nullptr ? bias[o] : 0.0f;
-            for (size_t i = 0; i < in_dim; ++i) {
-                acc += xr[i] * w[i];
-            }
-            outr[o] = acc;
+        float* row = out + r * out_dim;
+        if (bias != nullptr) {
+            std::copy(bias, bias + out_dim, row);
+        } else {
+            std::fill(row, row + out_dim, 0.0f);
         }
     }
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, static_cast<blasint>(rows), static_cast<blasint>(out_dim),
+               static_cast<blasint>(in_dim), 1.0f, x, static_cast<blasint>(in_dim), weight,
+               static_cast<blasint>(in_dim), 1.0f, out, static_cast<blasint>(out_dim));
 }
 
 float gelu(float x) {
@@ -51,9 +64,10 @@ float relu(float x) {
     return x > 0.0f ? x : 0.0f;
 }
 
-void multi_head_attention(const float* x, size_t seq_len, size_t hidden, size_t num_heads,
-                          const float* in_proj_weight, const float* in_proj_bias, const float* out_proj_weight,
-                          const float* out_proj_bias, float* out) {
+void multi_head_attention(const float* __restrict x, size_t seq_len, size_t hidden, size_t num_heads,
+                          const float* __restrict in_proj_weight, const float* __restrict in_proj_bias,
+                          const float* __restrict out_proj_weight, const float* __restrict out_proj_bias,
+                          float* __restrict out) {
     const size_t head_dim = hidden / num_heads;
     std::vector<float> qkv(seq_len * 3 * hidden);
     linear(x, seq_len, hidden, in_proj_weight, in_proj_bias, 3 * hidden, qkv.data());

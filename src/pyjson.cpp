@@ -164,4 +164,48 @@ std::string str(const Json& value) {
     }
 }
 
+std::string nonfinite_to_null(std::string_view text) {
+    static constexpr std::string_view literals[] = {"-Infinity", "Infinity", "NaN"};
+    std::string out;
+    out.reserve(text.size());
+    bool in_string = false;
+    bool escaped = false;
+    size_t i = 0;
+    while (i < text.size()) {
+        const char c = text[i];
+        if (in_string) {
+            out.push_back(c);
+            if (escaped) {
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (c == '"') {
+                in_string = false;
+            }
+            ++i;
+            continue;
+        }
+        if (c == '"') {
+            in_string = true;
+            out.push_back(c);
+            ++i;
+            continue;
+        }
+        bool replaced = false;
+        for (std::string_view lit : literals) {
+            if (text.compare(i, lit.size(), lit) == 0) {
+                out += "null";
+                i += lit.size();
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) {
+            out.push_back(c);
+            ++i;
+        }
+    }
+    return out;
+}
+
 }

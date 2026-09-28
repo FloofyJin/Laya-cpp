@@ -22,6 +22,13 @@ double clamp_temperature(double t) {
     return std::min(5.0, std::max(0.5, t));
 }
 
+double clamp_temperature(const nlohmann::json& value) {
+    if (!value.is_number()) {
+        return 1.0;
+    }
+    return clamp_temperature(value.get<double>());
+}
+
 double round4(double x) {
     return std::round(x * 10000.0) / 10000.0;
 }
@@ -106,18 +113,18 @@ TemperatureConfig TemperatureConfig::from_file(const std::string& path) {
     }
     std::ostringstream ss;
     ss << in.rdbuf();
-    const nlohmann::json j = nlohmann::json::parse(ss.str());
+    const nlohmann::json j = nlohmann::json::parse(py::nonfinite_to_null(ss.str()));
 
     TemperatureConfig cfg;
     if (j.contains("temperature")) {
         const auto& t = j.at("temperature");
         for (size_t i = 0; i < 3 && i < t.size(); ++i) {
-            cfg.temperature[i] = clamp_temperature(t.at(i).get<double>());
+            cfg.temperature[i] = clamp_temperature(t.at(i));
         }
     }
     if (j.contains("temperature_by_options")) {
         for (auto it = j.at("temperature_by_options").begin(); it != j.at("temperature_by_options").end(); ++it) {
-            cfg.temperature_by_options[it.key()] = clamp_temperature(it.value().get<double>());
+            cfg.temperature_by_options[it.key()] = clamp_temperature(it.value());
         }
     }
     return cfg;
