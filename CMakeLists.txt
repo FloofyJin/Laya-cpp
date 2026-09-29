@@ -72,7 +72,7 @@ if(LAYA_HIP)
   )
 endif()
 
-add_library(laya_core
+set(LAYA_CORE_SOURCES
   src/unicode.cpp
   src/tokenizer.cpp
   src/pyjson.cpp
@@ -88,6 +88,8 @@ add_library(laya_core
   src/cuda_chip.cpp
   ${LAYA_HIP_SOURCES}
 )
+
+add_library(laya_core STATIC ${LAYA_CORE_SOURCES})
 target_include_directories(laya_core PUBLIC include)
 target_link_libraries(laya_core PUBLIC nlohmann_json::nlohmann_json PRIVATE laya_utf8proc laya_blas)
 target_compile_options(laya_core PRIVATE -Wall -Wextra -Wpedantic)
@@ -96,6 +98,21 @@ if(LAYA_NATIVE_ARCH)
 endif()
 if(LAYA_HIP)
   target_link_libraries(laya_core PRIVATE hip::host roc::hipblas)
+endif()
+
+option(LAYA_SHARED_LIB "Also build liblaya_core.so (needed for ctypes/Python consumers)" OFF)
+if(LAYA_SHARED_LIB)
+  add_library(laya_core_shared SHARED ${LAYA_CORE_SOURCES})
+  set_target_properties(laya_core_shared PROPERTIES OUTPUT_NAME laya_core)
+  target_include_directories(laya_core_shared PUBLIC include)
+  target_link_libraries(laya_core_shared PUBLIC nlohmann_json::nlohmann_json PRIVATE laya_utf8proc laya_blas)
+  target_compile_options(laya_core_shared PRIVATE -Wall -Wextra -Wpedantic)
+  if(LAYA_NATIVE_ARCH)
+    target_compile_options(laya_core_shared PRIVATE -march=native)
+  endif()
+  if(LAYA_HIP)
+    target_link_libraries(laya_core_shared PRIVATE hip::host roc::hipblas)
+  endif()
 endif()
 
 add_executable(laya-tokenize tools/laya_tokenize.cpp)
