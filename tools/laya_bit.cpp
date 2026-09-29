@@ -3,6 +3,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "laya.h"
 
@@ -57,23 +58,35 @@ std::string json_escape(const std::string& s) {
 }
 
 int usage_msg() {
-    std::cerr << "usage: laya-bit --model DIR request FILE.json|-\n"
-                 "       laya-bit --model DIR requests FILE.jsonl\n";
+    std::cerr << "usage: laya-bit --model DIR [--chip cpu|hip|cuda] request FILE.json|-\n"
+                 "       laya-bit --model DIR [--chip cpu|hip|cuda] requests FILE.jsonl\n";
     return 2;
 }
 
 }
 
 int main(int argc, char** argv) {
-    if (argc != 5 || std::string(argv[1]) != "--model") {
+    std::string model_dir;
+    std::string chip = "cpu";
+    std::vector<std::string> positional;
+    for (int i = 1; i < argc; ++i) {
+        const std::string a = argv[i];
+        if (a == "--model" && i + 1 < argc) {
+            model_dir = argv[++i];
+        } else if (a == "--chip" && i + 1 < argc) {
+            chip = argv[++i];
+        } else {
+            positional.push_back(a);
+        }
+    }
+    if (model_dir.empty() || positional.size() != 2) {
         return usage_msg();
     }
-    const std::string model_dir = argv[2];
-    const std::string mode = argv[3];
-    const std::string arg = argv[4];
+    const std::string mode = positional[0];
+    const std::string arg = positional[1];
 
     char err_buf[512];
-    laya_agent* agent = laya_agent_load(model_dir.c_str(), err_buf, sizeof(err_buf));
+    laya_agent* agent = laya_agent_load(model_dir.c_str(), chip.c_str(), err_buf, sizeof(err_buf));
     if (agent == nullptr) {
         std::cerr << "laya-bit: " << err_buf << "\n";
         return 1;

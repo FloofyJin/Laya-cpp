@@ -34,13 +34,14 @@ struct laya_agent {
 
 extern "C" {
 
-laya_agent* laya_agent_load(const char* model_dir, char* err_buf, size_t err_buf_len) {
+laya_agent* laya_agent_load(const char* model_dir, const char* chip, char* err_buf, size_t err_buf_len) {
     if (model_dir == nullptr) {
         set_error(err_buf, err_buf_len, "model_dir is null");
         return nullptr;
     }
     try {
-        return new laya_agent{laya::Agent(model_dir)};
+        const laya::Chip c = laya::parse_chip(chip != nullptr ? chip : "cpu");
+        return new laya_agent{laya::Agent(model_dir, c)};
     } catch (const std::exception& e) {
         set_error(err_buf, err_buf_len, e.what());
         return nullptr;

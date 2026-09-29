@@ -72,13 +72,14 @@ REQUESTS = [
 ]
 
 
-def run_binary(binary, model_dir, mode, rows):
+def run_binary(binary, model_dir, mode, rows, chip="cpu"):
     with tempfile.NamedTemporaryFile("w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
         for row in rows:
             f.write(json.dumps(row) + "\n")
         path = f.name
     try:
-        out = subprocess.run([binary, "--model", model_dir, mode, path], check=True, capture_output=True, text=True)
+        out = subprocess.run([binary, "--model", model_dir, "--chip", chip, mode, path],
+                             check=True, capture_output=True, text=True)
     finally:
         os.unlink(path)
     lines = [json.loads(line) for line in out.stdout.splitlines() if line.strip()]
@@ -111,6 +112,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default=os.path.join(REPO_ROOT, "models", "laya"))
     ap.add_argument("--binary", default=os.path.join(REPO_ROOT, "build", "laya-predict"))
+    ap.add_argument("--chip", default="cpu")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -118,7 +120,7 @@ def main():
 
     agent = Agent(args.model, device="cpu")
 
-    mine_results = run_binary(args.binary, args.model, "requests", REQUESTS)
+    mine_results = run_binary(args.binary, args.model, "requests", REQUESTS, chip=args.chip)
 
     matched = 0
     for req, mine in zip(REQUESTS, mine_results):

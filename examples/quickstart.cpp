@@ -4,7 +4,7 @@
 
 int main() {
     char err[256];
-    laya_agent* agent = laya_agent_load("models/laya", err, sizeof(err));
+    laya_agent* agent = laya_agent_load("models/laya", "cpu", err, sizeof(err));
     if (agent == nullptr) {
         std::fprintf(stderr, "load failed: %s\n", err);
         return 1;

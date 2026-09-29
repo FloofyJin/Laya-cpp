@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "laya/modernbert.hpp"
 #include "laya/pyjson.hpp"
@@ -21,5 +22,8 @@ struct TemperatureConfig {
 
 py::Json predict_one(const SafetensorsFile& weights, const ModernBertConfig& enc_cfg,
                      const TemperatureConfig& temps, const Question& q, const SequenceItem& item);
+
+py::Json decode_from_hidden(const SafetensorsFile& weights, const TemperatureConfig& temps, const Question& q,
+                            const SequenceItem& item, const std::vector<float>& hidden_buf, size_t hidden);
 
 }

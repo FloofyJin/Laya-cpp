@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.21)
 project(laya_core_linux LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -12,6 +12,8 @@ endif()
 
 option(LAYA_FETCH_DEPS "Download utf8proc and nlohmann_json when not installed" ON)
 option(LAYA_NATIVE_ARCH "Build for this machine's CPU (-march=native); not portable to other CPUs" OFF)
+option(LAYA_HIP "Build the ROCm/HIP GPU backend (chip 'hip')" OFF)
+set(LAYA_HIP_ARCH "gfx1101" CACHE STRING "HIP GPU architecture target (e.g. gfx1101 for RX 7800 XT)")
 
 include(FetchContent)
 
@@ -55,6 +57,21 @@ else()
   target_link_libraries(laya_utf8proc INTERFACE utf8proc)
 endif()
 
+set(LAYA_HIP_SOURCES src/hip/hip_chip_stub.cpp)
+if(LAYA_HIP)
+  list(APPEND CMAKE_PREFIX_PATH /opt/rocm)
+  set(CMAKE_HIP_ARCHITECTURES ${LAYA_HIP_ARCH})
+  enable_language(HIP)
+  find_package(hip REQUIRED CONFIG)
+  find_package(hipblas REQUIRED CONFIG)
+  set(LAYA_HIP_SOURCES
+    src/hip/hip_nn.hip
+    src/hip/hip_weights.hip
+    src/hip/hip_modernbert.hip
+    src/hip/hip_chip.hip
+  )
+endif()
+
 add_library(laya_core
   src/unicode.cpp
   src/tokenizer.cpp
@@ -66,12 +83,19 @@ add_library(laya_core
   src/decision.cpp
   src/agent.cpp
   src/laya_c_api.cpp
+  src/chip_type.cpp
+  src/cpu_chip.cpp
+  src/cuda_chip.cpp
+  ${LAYA_HIP_SOURCES}
 )
 target_include_directories(laya_core PUBLIC include)
 target_link_libraries(laya_core PUBLIC nlohmann_json::nlohmann_json PRIVATE laya_utf8proc laya_blas)
 target_compile_options(laya_core PRIVATE -Wall -Wextra -Wpedantic)
 if(LAYA_NATIVE_ARCH)
   target_compile_options(laya_core PRIVATE -march=native)
+endif()
+if(LAYA_HIP)
+  target_link_libraries(laya_core PRIVATE hip::host roc::hipblas)
 endif()
 
 add_executable(laya-tokenize tools/laya_tokenize.cpp)

@@ -184,6 +184,7 @@ void render(const Game& g, int tick, int eaten, int shields, const std::string& 
 
 int main(int argc, char** argv) {
     std::string model_dir = "models/laya";
+    std::string chip = "cpu";
     int width = 16;
     int height = 10;
     int max_ticks = 60;
@@ -200,11 +201,13 @@ int main(int argc, char** argv) {
             width = std::atoi(argv[++i]);
         } else if (a == "--height" && i + 1 < argc) {
             height = std::atoi(argv[++i]);
+        } else if (a == "--chip" && i + 1 < argc) {
+            chip = argv[++i];
         }
     }
 
     char err[256];
-    laya_agent* agent = laya_agent_load(model_dir.c_str(), err, sizeof(err));
+    laya_agent* agent = laya_agent_load(model_dir.c_str(), chip.c_str(), err, sizeof(err));
     if (agent == nullptr) {
         std::fprintf(stderr, "laya-snake: %s\n", err);
         return 1;

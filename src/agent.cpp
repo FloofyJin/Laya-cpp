@@ -14,12 +14,13 @@ bool file_exists(const std::string& path) {
 
 }
 
-Agent::Agent(const std::string& model_dir)
+Agent::Agent(const std::string& model_dir, Chip chip)
     : tok_(Tokenizer::from_directory(file_exists(model_dir + "/tokenizer/tokenizer.json") ? model_dir + "/tokenizer"
                                                                                            : model_dir)),
       weights_(SafetensorsFile::open(model_dir + "/model.safetensors")),
       enc_cfg_(ModernBertConfig::from_file(model_dir + "/encoder/config.json")),
-      temps_(TemperatureConfig::from_file(model_dir + "/rl_agent_config.json")) {
+      temps_(TemperatureConfig::from_file(model_dir + "/rl_agent_config.json")),
+      chip_(make_chip_type(chip, weights_, enc_cfg_)) {
     if (file_exists(model_dir + "/rl_agent_config.json")) {
         cfg_ = AgentConfig::from_file(model_dir + "/rl_agent_config.json");
     }
@@ -46,7 +47,7 @@ py::Json Agent::predict(const py::Json& request) const {
     int64_t input_tokens = 0;
     for (const auto& item : items) {
         const Question& q = internal.at(item.qid);
-        answers[item.qid] = predict_one(weights_, enc_cfg_, temps_, q, item);
+        answers[item.qid] = chip_->compute(temps_, q, item);
         input_tokens += static_cast<int64_t>(item.ids.size());
     }
 

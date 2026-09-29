@@ -147,7 +147,6 @@ py::Json predict_one(const SafetensorsFile& weights, const ModernBertConfig& enc
                      const TemperatureConfig& temps, const Question& q, const SequenceItem& item) {
     const size_t seq_len = item.ids.size();
     const size_t hidden = static_cast<size_t>(enc_cfg.hidden_size);
-    const size_t k = item.markers.size();
 
     std::vector<float> h = modernbert_encoder(weights, enc_cfg, item.ids);
 
@@ -162,6 +161,14 @@ py::Json predict_one(const SafetensorsFile& weights, const ModernBertConfig& enc
     for (int layer = 0; layer < 2; ++layer) {
         h = head_layer_forward(weights, layer, h, seq_len, hidden);
     }
+
+    return decode_from_hidden(weights, temps, q, item, h, hidden);
+}
+
+py::Json decode_from_hidden(const SafetensorsFile& weights, const TemperatureConfig& temps, const Question& q,
+                            const SequenceItem& item, const std::vector<float>& hidden_buf, size_t hidden) {
+    const std::vector<float>& h = hidden_buf;
+    const size_t k = item.markers.size();
 
     const std::vector<float> scorer_norm_w = weights.as_f32("scorer.0.weight");
     const std::vector<float> scorer_norm_b = weights.as_f32("scorer.0.bias");
