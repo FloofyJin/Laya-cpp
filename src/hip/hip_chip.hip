@@ -32,6 +32,7 @@ struct HipChip::Impl {
     const SafetensorsFile& host_weights;
     HipWeights weights;
     ModernBertConfig enc_cfg;
+    HipEncoderScratch scratch;
 
     Impl(const SafetensorsFile& sf, const ModernBertConfig& cfg) : host_weights(sf), weights(sf), enc_cfg(cfg) {}
 };
@@ -55,11 +56,10 @@ HipChip::~HipChip() {
 }
 
 py::Json HipChip::compute(const TemperatureConfig& temps, const Question& q, const SequenceItem& item) const {
-    HipTensor t = hip_modernbert_encoder(impl_->handle, impl_->weights, impl_->enc_cfg, item.ids);
-    t = hip_add_type_emb_and_head(impl_->handle, impl_->weights, impl_->enc_cfg, t, item.qtype);
+    HipTensor t = hip_modernbert_encoder(impl_->handle, impl_->weights, impl_->enc_cfg, item.ids, impl_->scratch);
+    t = hip_add_type_emb_and_head(impl_->handle, impl_->weights, impl_->enc_cfg, t, item.qtype, impl_->scratch);
 
     const std::vector<float> host_hidden = hip_download(t);
-    hip_free_tensor(t);
 
     return decode_from_hidden(impl_->host_weights, temps, q, item, host_hidden,
                               static_cast<size_t>(impl_->enc_cfg.hidden_size));
