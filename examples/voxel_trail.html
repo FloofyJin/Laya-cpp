@@ -1,0 +1,846 @@
+<title>Voxel Trail</title>
+<style>
+/* layout: full-bleed fixed-angle 3D canvas arena with a HUD strip pinned top, a centered start/game-over panel, and a touch d-pad pinned bottom */
+:root {
+  --bg: #0a0e1a;
+  --panel: #121a2ee6;
+  --panel-border: #2a3a5c;
+  --fg: #eaeef6;
+  --fg-dim: #8792ab;
+  --accent: #45f0c0;
+  --accent-2: #ff7a45;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+}
+
+.display {
+  font-family: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+}
+
+#stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hud {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 18px 20px;
+  pointer-events: none;
+}
+
+.hud-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  text-shadow: 0 0 18px rgba(69, 240, 192, 0.45);
+}
+
+.hud-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ai-info {
+  font-size: 11px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+  max-width: 220px;
+  line-height: 1.4;
+}
+
+.ai-info .exec {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.ai-info .warn {
+  color: var(--accent-2);
+}
+
+.hud-scores {
+  text-align: right;
+}
+
+.hud-score {
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.hud-best {
+  font-size: 12px;
+  color: var(--fg-dim);
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: radial-gradient(ellipse at center, rgba(10, 14, 26, 0.35), rgba(10, 14, 26, 0.82));
+  transition: opacity 0.25s ease;
+}
+
+.overlay[hidden] { display: none; }
+
+.panel {
+  width: min(340px, 100%);
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  border-radius: 18px;
+  padding: 28px 26px;
+  text-align: center;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
+}
+
+.panel h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  letter-spacing: 0.02em;
+  text-wrap: balance;
+}
+
+.panel .sub {
+  margin: 0 0 22px;
+  color: var(--fg-dim);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.panel .result {
+  margin: 0 0 22px;
+  color: var(--fg-dim);
+  font-size: 14px;
+}
+
+.panel .result strong {
+  display: block;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 40px;
+  color: var(--fg);
+  line-height: 1.2;
+}
+
+.panel .result .best-line {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.panel .result .new-best {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+button.cta {
+  appearance: none;
+  border: none;
+  border-radius: 12px;
+  padding: 13px 20px;
+  width: 100%;
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: var(--accent);
+  color: #06231b;
+  cursor: pointer;
+}
+
+button.cta:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.latency-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 210px;
+  padding: 78px 14px 16px;
+  background: rgba(10, 14, 26, 0.6);
+  border-left: 1px solid var(--panel-border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.latency-title {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--fg-dim);
+}
+
+.latency-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.latency-summary .big {
+  font-family: 'Chakra Petch', sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.latency-summary .sub {
+  font-size: 11px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.latency-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: auto;
+}
+
+.latency-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 11px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.latency-row .ms { color: var(--fg); font-weight: 600; }
+.latency-row.fast .ms { color: var(--accent); }
+.latency-row.slow .ms { color: var(--accent-2); }
+.latency-row.err { color: var(--accent-2); }
+
+@media (max-width: 640px) {
+  .latency-panel { width: 128px; padding: 78px 8px 10px; gap: 8px; }
+  .latency-summary .big { font-size: 19px; }
+  .latency-row { font-size: 10px; padding: 3px 5px; }
+}
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Manrope:wght@400;600;800&display=swap">
+
+<div id="stage"></div>
+
+<div class="hud">
+  <div class="hud-left">
+    <div class="hud-title display">VOXEL TRAIL</div>
+    <div class="ai-info" id="aiInfo" hidden></div>
+  </div>
+  <div class="hud-scores">
+    <div class="hud-score display" id="score">0</div>
+    <div class="hud-best" id="best">BEST 0</div>
+  </div>
+</div>
+
+<div class="overlay" id="startOverlay">
+  <div class="panel">
+    <h1 class="display">Voxel Trail</h1>
+    <p class="sub">Laya plays autonomously: a Hamiltonian-cycle planner keeps every move safe, and Laya chooses the fastest route to each shard.</p>
+    <button class="cta" id="startBtn">WATCH LAYA PLAY</button>
+  </div>
+</div>
+
+<div class="latency-panel">
+  <div class="latency-title">LAYA CALL LATENCY</div>
+  <div class="latency-summary">
+    <div class="big" id="latLast">&mdash;</div>
+    <div class="sub" id="latAvg">avg &mdash;  &middot;  n=0</div>
+  </div>
+  <div class="latency-list" id="latList"></div>
+</div>
+
+<div class="overlay" id="overOverlay" hidden>
+  <div class="panel">
+    <h1 class="display">Run Over</h1>
+    <div class="result">
+      <strong id="finalScore">0</strong>
+      shards collected
+      <div class="best-line" id="bestLine">BEST 0</div>
+    </div>
+    <button class="cta" id="retryBtn">WATCH AGAIN</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var COLS = 16, ROWS = 16, CELL = 1;
+  var BASE_TICK_MS = 150, MIN_TICK_MS = 80, AI_ANIM_MS = 180;
+  var AI_ENDPOINT = 'http://127.0.0.1:8787/predict';
+
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var startOverlay = document.getElementById('startOverlay');
+  var overOverlay = document.getElementById('overOverlay');
+  var finalScoreEl = document.getElementById('finalScore');
+  var bestLineEl = document.getElementById('bestLine');
+  var startBtn = document.getElementById('startBtn');
+  var retryBtn = document.getElementById('retryBtn');
+  var aiInfo = document.getElementById('aiInfo');
+  var latLastEl = document.getElementById('latLast');
+  var latAvgEl = document.getElementById('latAvg');
+  var latListEl = document.getElementById('latList');
+
+  function loadBest() {
+    try {
+      var v = parseInt(localStorage.getItem('voxelTrailBest') || '0', 10);
+      return isNaN(v) ? 0 : v;
+    } catch (e) { return 0; }
+  }
+  function saveBest(v) {
+    try { localStorage.setItem('voxelTrailBest', String(v)); } catch (e) {}
+  }
+
+  var best = loadBest();
+  bestEl.textContent = 'BEST ' + best;
+
+  var DIRS = {
+    up: { x: 0, y: -1 },
+    down: { x: 0, y: 1 },
+    left: { x: -1, y: 0 },
+    right: { x: 1, y: 0 }
+  };
+
+  function cellsEqual(a, b) { return a.x === b.x && a.y === b.y; }
+  function cloneCell(c) { return { x: c.x, y: c.y }; }
+  function toWorld(cx, cy) {
+    return {
+      x: (cx - (COLS - 1) / 2) * CELL,
+      z: (cy - (ROWS - 1) / 2) * CELL
+    };
+  }
+  function mod(n, m) { return ((n % m) + m) % m; }
+
+  function hamiltonianCycle(width, height) {
+    if (Math.min(width, height) < 4 || (width % 2 !== 0 && height % 2 !== 0)) {
+      throw new Error('board must be >= 4 in each dimension, with at least one even dimension');
+    }
+    if (height % 2 !== 0) {
+      return hamiltonianCycle(height, width).map(function (p) { return { x: p.y, y: p.x }; });
+    }
+    var path = [{ x: 0, y: 0 }];
+    for (var y = 0; y < height; y++) {
+      if (y % 2 === 0) { for (var x = 1; x < width; x++) path.push({ x: x, y: y }); }
+      else { for (var x2 = width - 1; x2 >= 1; x2--) path.push({ x: x2, y: y }); }
+    }
+    for (var y2 = height - 1; y2 >= 1; y2--) path.push({ x: 0, y: y2 });
+    return path;
+  }
+
+  var CAPACITY = COLS * ROWS;
+  var cycle = hamiltonianCycle(COLS, ROWS);
+  var indexOf = new Array(CAPACITY);
+  cycle.forEach(function (p, i) { indexOf[p.y * COLS + p.x] = i; });
+  function indexAt(c) { return indexOf[c.y * COLS + c.x]; }
+
+  function isLegalDir(name) {
+    var d = DIRS[name];
+    var head = snake[0];
+    var cell = { x: head.x + d.x, y: head.y + d.y };
+    if (cell.x < 0 || cell.x >= COLS || cell.y < 0 || cell.y >= ROWS) return false;
+    if (snake.length > 1 && cellsEqual(cell, snake[1])) return false;
+    var grows = cellsEqual(cell, food);
+    for (var i = 0; i < snake.length; i++) {
+      if (!grows && i === snake.length - 1) continue;
+      if (cellsEqual(snake[i], cell)) return false;
+    }
+    return true;
+  }
+
+  function computeMoves() {
+    var head = snake[0];
+    var headIdx = indexAt(head);
+    var tailDistance = mod(indexAt(snake[snake.length - 1]) - headIdx, CAPACITY);
+    var foodDistance = mod(indexAt(food) - headIdx, CAPACITY);
+    var result = [];
+    ['up', 'down', 'left', 'right'].forEach(function (name) {
+      var d = DIRS[name];
+      var legal = isLegalDir(name);
+      var t = { x: head.x + d.x, y: head.y + d.y };
+      var inRange = t.x >= 0 && t.x < COLS && t.y >= 0 && t.y < ROWS;
+      var targetIdx = inRange ? indexAt(t) : headIdx;
+      var advance = mod(targetIdx - headIdx, CAPACITY);
+      var eats = inRange && cellsEqual(t, food);
+      var safe = legal;
+      if (safe && (advance > tailDistance || (advance === tailDistance && eats))) safe = false;
+      if (safe && (advance === 0 || advance > foodDistance)) safe = false;
+      result.push({ name: name, legal: legal, safe: safe, advance: advance, eats: eats });
+    });
+    return result;
+  }
+
+  function foodReachability() {
+    var blocked = {};
+    for (var i = 1; i < snake.length; i++) blocked[snake[i].x + ',' + snake[i].y] = true;
+    var visited = {};
+    var head = snake[0];
+    visited[head.x + ',' + head.y] = true;
+    var queue = [head];
+    while (queue.length) {
+      var p = queue.shift();
+      for (var name in DIRS) {
+        var d = DIRS[name];
+        var np = { x: p.x + d.x, y: p.y + d.y };
+        if (np.x < 0 || np.x >= COLS || np.y < 0 || np.y >= ROWS) continue;
+        var key = np.x + ',' + np.y;
+        if (blocked[key] || visited[key]) continue;
+        visited[key] = true;
+        queue.push(np);
+      }
+    }
+    return visited[food.x + ',' + food.y] === true;
+  }
+
+  function buildMoveRequest(movesList, safeExists, foodReachable) {
+    var bestAdvance = -1, preferred = null;
+    movesList.forEach(function (m) {
+      if (m.safe && m.advance > bestAdvance) { bestAdvance = m.advance; preferred = m.name; }
+    });
+    var criteria = {};
+    movesList.forEach(function (m) {
+      var label;
+      if (!m.legal) label = 'Blocked. Collision.';
+      else if (!m.safe) label = 'Unsafe. Traps the snake.';
+      else if (m.eats) label = 'Safe. Eat food now. Best.';
+      else if (preferred && m.name === preferred) label = 'Safe. Best route to food.';
+      else label = 'Safe. Slower route.';
+      criteria[m.name] = label;
+    });
+    return {
+      state: 'Safe route: ' + (safeExists ? 'yes' : 'no') +
+        '. Food reachable through empty cells: ' + (foodReachable ? 'yes' : 'no') + '.',
+      questions: {
+        move: { type: 'choice', instructions: 'Choose the best safe move toward food.', criteria: criteria },
+        risk: { type: 'noul', instructions: 'Is a safe route available?' },
+        food: { type: 'noul', instructions: 'Is food reachable through empty cells?' }
+      }
+    };
+  }
+
+  var scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0e1a);
+  scene.fog = new THREE.Fog(0x0a0e1a, 18, 34);
+
+  var stageEl = document.getElementById('stage');
+  var camera = new THREE.PerspectiveCamera(48, 1, 0.1, 100);
+
+  var renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  stageEl.appendChild(renderer.domElement);
+
+  function positionCamera() {
+    var aspect = window.innerWidth / window.innerHeight;
+    var pull = aspect < 0.8 ? 1.55 : aspect < 1.1 ? 1.25 : 1.0;
+    camera.position.set(0, 15.5 * pull, 13.5 * pull);
+    camera.lookAt(0, 0, 0.5);
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+  }
+
+  function onResize() {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    positionCamera();
+  }
+  window.addEventListener('resize', onResize);
+
+  var ambient = new THREE.AmbientLight(0x35406a, 0.9);
+  scene.add(ambient);
+
+  var key = new THREE.DirectionalLight(0xffffff, 1.0);
+  key.position.set(9, 18, 10);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.camera.left = -14;
+  key.shadow.camera.right = 14;
+  key.shadow.camera.top = 14;
+  key.shadow.camera.bottom = -14;
+  key.shadow.camera.far = 40;
+  scene.add(key);
+
+  var rim = new THREE.PointLight(0x45f0c0, 0.6, 30);
+  rim.position.set(-6, 6, -6);
+  scene.add(rim);
+
+  var boardGroup = new THREE.Group();
+  scene.add(boardGroup);
+
+  var tileGeo = new THREE.BoxGeometry(CELL * 0.96, 0.2, CELL * 0.96);
+  var tileMatA = new THREE.MeshStandardMaterial({ color: 0x141c33, roughness: 0.85, metalness: 0.1 });
+  var tileMatB = new THREE.MeshStandardMaterial({ color: 0x0f1526, roughness: 0.85, metalness: 0.1 });
+  for (var ty = 0; ty < ROWS; ty++) {
+    for (var tx = 0; tx < COLS; tx++) {
+      var w = toWorld(tx, ty);
+      var tile = new THREE.Mesh(tileGeo, ((tx + ty) % 2 === 0) ? tileMatA : tileMatB);
+      tile.position.set(w.x, -0.1, w.z);
+      tile.receiveShadow = true;
+      boardGroup.add(tile);
+    }
+  }
+
+  var wallMat = new THREE.MeshStandardMaterial({ color: 0x1c2a4a, roughness: 0.5, metalness: 0.3, emissive: 0x0d3a30, emissiveIntensity: 0.4 });
+  var wallHeight = 0.6;
+  var half = { x: COLS * CELL / 2, z: ROWS * CELL / 2 };
+  function makeWall(w, h, d, x, z) {
+    var geo = new THREE.BoxGeometry(w, h, d);
+    var m = new THREE.Mesh(geo, wallMat);
+    m.position.set(x, h / 2 - 0.1, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    boardGroup.add(m);
+  }
+  makeWall(COLS * CELL + 0.4, wallHeight, 0.3, 0, -half.z - 0.15);
+  makeWall(COLS * CELL + 0.4, wallHeight, 0.3, 0, half.z + 0.15);
+  makeWall(0.3, wallHeight, ROWS * CELL + 0.4, -half.x - 0.15, 0);
+  makeWall(0.3, wallHeight, ROWS * CELL + 0.4, half.x + 0.15, 0);
+
+  var starGeo = new THREE.BufferGeometry();
+  var starCount = 200;
+  var starPos = new Float32Array(starCount * 3);
+  for (var i = 0; i < starCount; i++) {
+    var ang = Math.random() * Math.PI * 2;
+    var rad = 16 + Math.random() * 14;
+    starPos[i * 3] = Math.cos(ang) * rad;
+    starPos[i * 3 + 1] = Math.random() * 12 + 1;
+    starPos[i * 3 + 2] = Math.sin(ang) * rad;
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+  var starMat = new THREE.PointsMaterial({ color: 0x8fa0d0, size: 0.12, transparent: true, opacity: 0.7 });
+  scene.add(new THREE.Points(starGeo, starMat));
+
+  var headGeo = new THREE.BoxGeometry(CELL * 0.86, CELL * 0.7, CELL * 0.86);
+  var bodyGeo = new THREE.BoxGeometry(CELL * 0.72, CELL * 0.56, CELL * 0.72);
+  var headMat = new THREE.MeshStandardMaterial({ color: 0x9dfce2, emissive: 0x45f0c0, emissiveIntensity: 0.55, roughness: 0.35, metalness: 0.2 });
+
+  var segmentPool = [];
+  function getSegmentMesh(index) {
+    while (segmentPool.length <= index) {
+      var n = segmentPool.length;
+      var mat = n === 0 ? headMat : new THREE.MeshStandardMaterial({
+        color: 0x2fd9ab, emissive: 0x1f8f6c, emissiveIntensity: 0.35, roughness: 0.4, metalness: 0.15
+      });
+      var mesh = new THREE.Mesh(n === 0 ? headGeo : bodyGeo, mat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = false;
+      mesh.visible = false;
+      scene.add(mesh);
+      segmentPool.push(mesh);
+    }
+    return segmentPool[index];
+  }
+
+  var foodGeo = new THREE.IcosahedronGeometry(0.34, 0);
+  var foodMat = new THREE.MeshStandardMaterial({ color: 0xffb27a, emissive: 0xff7a45, emissiveIntensity: 0.85, roughness: 0.25, metalness: 0.3 });
+  var foodMesh = new THREE.Mesh(foodGeo, foodMat);
+  foodMesh.castShadow = true;
+  scene.add(foodMesh);
+  var foodLight = new THREE.PointLight(0xff7a45, 0.8, 6);
+  scene.add(foodLight);
+
+  var state = 'start';
+  var snake, prevGrid, currGrid, food, score, tickMs, acc, elapsed;
+  var aiPending = false, pendingAiDir = null;
+  var latCount = 0, latTotalMs = 0, latMaxRows = 24;
+
+  function recordLatency(ms, ok) {
+    latCount++;
+    latTotalMs += ms;
+    var avg = latTotalMs / latCount;
+
+    latLastEl.textContent = Math.round(ms) + 'ms';
+    latAvgEl.textContent = 'avg ' + Math.round(avg) + 'ms  ·  n=' + latCount;
+
+    var row = document.createElement('div');
+    var cls = 'latency-row';
+    if (!ok) cls += ' err';
+    else if (ms < avg * 0.8) cls += ' fast';
+    else if (ms > avg * 1.3) cls += ' slow';
+    row.className = cls;
+    row.innerHTML = '<span>#' + latCount + '</span><span class="ms">' + (ok ? Math.round(ms) + 'ms' : 'error') + '</span>';
+    latListEl.insertBefore(row, latListEl.firstChild);
+    while (latListEl.children.length > latMaxRows) {
+      latListEl.removeChild(latListEl.lastChild);
+    }
+  }
+
+  function randomEmptyCell() {
+    var occupied = {};
+    for (var i = 0; i < snake.length; i++) occupied[snake[i].x + ',' + snake[i].y] = true;
+    var free = [];
+    for (var y = 0; y < ROWS; y++) {
+      for (var x = 0; x < COLS; x++) {
+        if (!occupied[x + ',' + y]) free.push({ x: x, y: y });
+      }
+    }
+    if (free.length === 0) return { x: 0, y: 0 };
+    return free[Math.floor(Math.random() * free.length)];
+  }
+
+  function resetGame(fromSnapshot) {
+    if (fromSnapshot && fromSnapshot.snake) {
+      snake = fromSnapshot.snake.map(cloneCell);
+      food = fromSnapshot.food || randomEmptyCell();
+      score = fromSnapshot.score || 0;
+      state = fromSnapshot.state || 'playing';
+    } else {
+      var cy = Math.floor(ROWS / 2);
+      snake = [{ x: 8, y: cy }, { x: 7, y: cy }, { x: 6, y: cy }];
+      food = randomEmptyCell();
+      score = 0;
+      state = 'start';
+    }
+    pendingAiDir = null;
+    prevGrid = snake.map(cloneCell);
+    currGrid = snake.map(cloneCell);
+    tickMs = BASE_TICK_MS;
+    acc = 0;
+    elapsed = 0;
+    scoreEl.textContent = String(score);
+    for (var i = 0; i < segmentPool.length; i++) segmentPool[i].visible = false;
+    updateFoodPosition();
+    if (state === 'playing') {
+      startOverlay.hidden = true;
+      overOverlay.hidden = true;
+    } else {
+      startOverlay.hidden = false;
+      overOverlay.hidden = true;
+    }
+  }
+
+  function updateFoodPosition() {
+    var w = toWorld(food.x, food.y);
+    foodMesh.position.set(w.x, 0.28, w.z);
+    foodLight.position.set(w.x, 1.2, w.z);
+  }
+
+  function startRun() {
+    if (state === 'playing') return;
+    state = 'playing';
+    startOverlay.hidden = true;
+    overOverlay.hidden = true;
+  }
+
+  function endRun() {
+    state = 'over';
+    var isNew = score > best;
+    if (isNew) { best = score; saveBest(best); }
+    bestEl.textContent = 'BEST ' + best;
+    finalScoreEl.textContent = String(score);
+    bestLineEl.innerHTML = isNew ? '<span class="new-best">NEW BEST</span>' : 'BEST ' + best;
+    overOverlay.hidden = false;
+  }
+
+  function tick(direction) {
+    var head = snake[0];
+    var newHead = { x: head.x + direction.x, y: head.y + direction.y };
+
+    if (newHead.x < 0 || newHead.x >= COLS || newHead.y < 0 || newHead.y >= ROWS) {
+      endRun();
+      return;
+    }
+
+    var eating = cellsEqual(newHead, food);
+    var checkBody = eating ? snake : snake.slice(0, -1);
+    for (var i = 0; i < checkBody.length; i++) {
+      if (cellsEqual(checkBody[i], newHead)) { endRun(); return; }
+    }
+
+    var oldSnake = snake;
+    var newSnake = [newHead].concat(oldSnake.slice(0, eating ? oldSnake.length : oldSnake.length - 1));
+
+    var newPrevGrid = [];
+    for (var j = 0; j < newSnake.length; j++) {
+      newPrevGrid.push(j < oldSnake.length ? oldSnake[j] : oldSnake[oldSnake.length - 1]);
+    }
+    prevGrid = newPrevGrid;
+    currGrid = newSnake;
+    snake = newSnake;
+
+    if (eating) {
+      score++;
+      scoreEl.textContent = String(score);
+      food = randomEmptyCell();
+      updateFoodPosition();
+      tickMs = Math.max(MIN_TICK_MS, BASE_TICK_MS - score * 3);
+    }
+  }
+
+  function setAiInfo(html, warn) {
+    aiInfo.hidden = false;
+    aiInfo.innerHTML = html;
+    aiInfo.className = 'ai-info' + (warn ? ' warn' : '');
+  }
+
+  function aiDecide() {
+    if (aiPending || state !== 'playing') return;
+    var movesList = computeMoves();
+    var safeDirs = movesList.filter(function (m) { return m.safe; }).map(function (m) { return m.name; });
+    if (safeDirs.length === 0) {
+      setAiInfo('<span class="warn">no safe move — trapped</span>', true);
+      return;
+    }
+    var reachable = foodReachability();
+    var reqBody = buildMoveRequest(movesList, true, reachable);
+    aiPending = true;
+    var t0 = performance.now();
+    fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reqBody)
+    })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (resp) {
+        recordLatency(performance.now() - t0, true);
+        var proposed = resp.answers.move.choice;
+        var executed = proposed;
+        var intervened = false;
+        if (safeDirs.indexOf(proposed) === -1) {
+          var probs = resp.answers.move.probabilities || {};
+          executed = safeDirs.reduce(function (best, name) {
+            return (probs[name] || 0) > (probs[best] || 0) ? name : best;
+          }, safeDirs[0]);
+          intervened = true;
+        }
+        pendingAiDir = DIRS[executed];
+        setAiInfo(
+          'laya: ' + proposed + (intervened ? ' &rarr; <span class="exec">' + executed + '</span> (overridden)' : ' <span class="exec">(executed)</span>') +
+          '<br>risk ' + resp.answers.risk.noul.toFixed(2) + ' &middot; food ' + resp.answers.food.noul.toFixed(2)
+        );
+      })
+      .catch(function (err) {
+        recordLatency(performance.now() - t0, false);
+        pendingAiDir = DIRS[safeDirs[0]];
+        setAiInfo('server unreachable, using safe fallback<br><span class="warn">' + String(err.message || err) + '</span>', true);
+      })
+      .finally(function () {
+        aiPending = false;
+      });
+  }
+
+  function driveAI() {
+    if (state !== 'playing') return;
+    if (pendingAiDir) {
+      var forced = pendingAiDir;
+      pendingAiDir = null;
+      tick(forced);
+      acc = 0;
+      tickMs = AI_ANIM_MS;
+    } else if (!aiPending) {
+      aiDecide();
+    }
+  }
+
+  function syncMeshes(alpha) {
+    for (var i = 0; i < currGrid.length; i++) {
+      var mesh = getSegmentMesh(i);
+      mesh.visible = true;
+      var pw = toWorld(prevGrid[i].x, prevGrid[i].y);
+      var cw = toWorld(currGrid[i].x, currGrid[i].y);
+      var x = pw.x + (cw.x - pw.x) * alpha;
+      var z = pw.z + (cw.z - pw.z) * alpha;
+      var baseY = i === 0 ? 0.35 : 0.28;
+      mesh.position.set(x, baseY, z);
+      var scale = i === 0 ? 1 : Math.max(0.62, 1 - i * 0.012);
+      mesh.scale.set(scale, scale, scale);
+    }
+    for (var k = currGrid.length; k < segmentPool.length; k++) segmentPool[k].visible = false;
+  }
+
+  var clock = new THREE.Clock();
+  function animate() {
+    requestAnimationFrame(animate);
+    var dt = Math.min(clock.getDelta(), 0.05) * 1000;
+    elapsed += dt;
+
+    foodMesh.rotation.y += dt * 0.002;
+    foodMesh.position.y = 0.28 + Math.sin(elapsed * 0.004) * 0.08;
+    foodLight.intensity = 0.7 + Math.sin(elapsed * 0.006) * 0.2;
+
+    if (state === 'playing') {
+      driveAI();
+      acc += dt;
+    } else {
+      acc = 0;
+    }
+
+    var alpha = tickMs > 0 ? Math.min(1, acc / tickMs) : 1;
+    syncMeshes(state === 'over' ? 1 : alpha);
+
+    renderer.render(scene, camera);
+  }
+
+  startBtn.addEventListener('click', startRun);
+  retryBtn.addEventListener('click', function () { resetGame(null); startRun(); });
+
+  function snapshot() {
+    return { snake: snake, food: food, score: score, state: state === 'playing' ? 'start' : state };
+  }
+
+  function boot(data) {
+    resetGame(data && data.snake ? data : null);
+    onResize();
+    animate();
+  }
+
+  try {
+    if (window.claude && window.claude.hot) {
+      window.claude.hot.snapshot(snapshot);
+      if (window.claude.hot.ready) window.claude.hot.ready(boot);
+      else boot(window.claude.hot.data || null);
+    } else {
+      boot(null);
+    }
+  } catch (e) {
+    boot(null);
+  }
+})();
+</script>
